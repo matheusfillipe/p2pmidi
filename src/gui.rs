@@ -16,16 +16,17 @@ enum ThemeType {
     Dark,
 }
 
-struct App {
-    count: u8,
-    theme: Theme,
-    settings: settings::Settings,
-}
-
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum Message {
     ThemeChanged(ThemeType),
+    AddressesChanged(String),
     Connect,
+}
+
+struct App {
+    theme: Theme,
+    settings: settings::Settings,
+    addresses: String
 }
 
 impl Application for App {
@@ -37,9 +38,9 @@ impl Application for App {
     fn new(_flags: settings::Settings) -> (Self, Command<Message>) {
         (
             App {
+                addresses: _flags.ip_addresses.join(", "),
                 settings: _flags,
                 theme: Theme::Light,
-                count: 0,
             },
             Command::none(),
         )
@@ -51,13 +52,14 @@ impl Application for App {
 
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
-            Message::Connect => self.count -= 1,
+            Message::Connect => (),
             Message::ThemeChanged(theme) => {
                 self.theme = match theme {
                     ThemeType::Light => Theme::Light,
                     ThemeType::Dark => Theme::Dark,
                 }
-            }
+            },
+            Message::AddressesChanged(s) => self.addresses = s,
         };
         Command::none()
     }
@@ -78,12 +80,14 @@ impl Application for App {
                 ))
             },
         );
-        let label = Text::new(format!("Count: {}", self.count));
+        let label = Text::new(format!("Connecting..."));
+
         let addresses = TextInput::new(
             "Comma Separated list of ip addresses",
-            self.settings.ip_addresses.join(", ").as_str(),
+            self.addresses.as_str(),
         )
-        .padding(10)
+        .on_input(|s| Message::AddressesChanged(s))
+        .padding(15)
         .size(20);
         
 

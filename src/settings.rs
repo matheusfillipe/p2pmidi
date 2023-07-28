@@ -1,5 +1,6 @@
 use std::env;
-use std::io::Cursor;
+use serde::Serialize;
+use std::io::{BufWriter, Cursor};
 use std::{fs::File, io::BufReader, path::Path};
 
 use super::midi;
@@ -18,7 +19,7 @@ use skim::Skim;
 #[clap(author, version, about, long_about = None)]
 pub struct Args {
     /// Config file
-    #[clap(short, long = "config", default_value = "~/.config/p2pmidi/config.yml")]
+    #[clap(short, long = "config", default_value = constants::DEFAULT_CONFIG_PATH)]
     pub config_path: std::path::PathBuf,
 
     /// Open in GUI mode.
@@ -34,7 +35,7 @@ pub struct Args {
     pub settings: <Settings as ClapSerde>::Opt,
 }
 
-#[derive(ClapSerde)]
+#[derive(ClapSerde, Serialize)]
 pub struct Settings {
     /// Give yourself a name. Defaults to your username.
     #[clap(short = 'n', long = "name")]
@@ -59,6 +60,30 @@ pub struct Settings {
     /// Circuit relay port. Use a non default port to connect.
     #[clap(short='P', long="relay_port", default_value = constants::RELAY_PORT)]
     pub relay_port: u16,
+}
+
+impl Settings {
+    /// Save settings to config file as serde serialized YAML
+    pub(crate) fn save(&self) -> Result<String, Box<dyn std::error::Error>> {
+
+        let contents = match serde_yaml::to_string(self) {
+            Ok(s) => s,
+            Err(err) => return Err(err.into()),
+        };
+
+        // Get config file
+        let path = shellexpand::tilde(constants::DEFAULT_CONFIG_PATH).into_owned();
+        let config_path = Path::new(&path);
+        if let Ok(_) = File::open(config_path.to_path_buf()) {
+            std::fs::write(config_path.to_path_buf(), contents)?;
+        } else {
+            // Create directory and empty config file
+            let parent = config_path.parent().unwrap();
+            std::fs::create_dir_all(parent)?;
+            std::fs::write(config_path.to_path_buf(), contents)?;
+        }
+        Ok(config_path.display().to_string())
+    }
 }
 
 pub fn parse_config_file(args: &mut Args) -> Settings {

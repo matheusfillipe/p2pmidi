@@ -20,24 +20,28 @@ pub fn display_devices() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn get_midi_list<T: midir::MidiIO>(
+pub fn get_midi_list<T: midir::MidiIO>(midi: &T) -> Vec<String> {
+    midi
+        .ports()
+        .iter()
+        .map(|p| midi.port_name(p).unwrap_or("Unknown".to_string()))
+        .into_iter()
+        .collect::<Vec<String>>()
+}
+
+pub fn get_midi_list_from_result<T: midir::MidiIO>(
     midi: Result<T, midir::InitError>,
 ) -> Result<Vec<String>, String> {
     match midi {
-        Ok(m) => Ok(m
-            .ports()
-            .iter()
-            .map(|p| m.port_name(p).unwrap_or("Unknown".to_string()))
-            .into_iter()
-            .collect::<Vec<String>>()),
+        Ok(m) => Ok(get_midi_list(&m)),
         Err(e) => return Err(format!("Error creating midi input: {}", e)),
     }
 }
 
 pub fn get_midi_input() -> Result<Vec<String>, String> {
-    get_midi_list(MidiInput::new("midir test input"))
+    get_midi_list_from_result(MidiInput::new("midir test input"))
 }
 
 pub fn get_midi_output() -> Result<Vec<String>, String> {
-    get_midi_list(MidiOutput::new("midir test output"))
+    get_midi_list_from_result(MidiOutput::new("midir test output"))
 }

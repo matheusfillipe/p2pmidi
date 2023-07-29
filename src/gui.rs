@@ -1,4 +1,5 @@
 use crate::midi::get_midi_list;
+use crate::settings::ThemeType;
 use std;
 
 use super::settings;
@@ -37,12 +38,6 @@ pub fn run_app(settings: settings::Settings) -> Result<(), iced::Error> {
     })
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-enum ThemeType {
-    Light,
-    Dark,
-}
-
 #[derive(Debug, Clone)]
 enum Message {
     ThemeChanged(ThemeType),
@@ -51,6 +46,14 @@ enum Message {
     Connect,
     ReloadMidiDevices,
     SaveSettings,
+    NameChanged(String),
+}
+
+fn theme_type_to_iced_theme(theme: ThemeType) -> Theme {
+    match theme {
+        ThemeType::Light => Theme::Light,
+        ThemeType::Dark => Theme::Dark,
+    }
 }
 
 struct App {
@@ -71,12 +74,15 @@ impl Application for App {
 
     fn new(_flags: Self::Flags) -> (Self, Command<Message>) {
         let midi_devices = get_midi_list(&_flags.midi_output);
-        print!("ip addresses in gui: {}", _flags.settings.ip_addresses.join(", "));
+        print!(
+            "ip addresses in gui: {}",
+            _flags.settings.ip_addresses.join(", ")
+        );
         (
             App {
                 addresses: _flags.settings.ip_addresses.join(", "),
+                theme: theme_type_to_iced_theme(_flags.settings.theme.unwrap_or(ThemeType::Light)),
                 app_flags: _flags,
-                theme: Theme::Light,
                 selected_midi_device: if midi_devices.is_empty() {
                     None
                 } else {
@@ -115,13 +121,24 @@ impl Application for App {
                     .map(|s| s.trim().to_string())
                     .collect();
                 self.app_flags.settings.midi_device = self.selected_midi_device.to_owned();
+                self.app_flags.settings.theme = match self.theme {
+                    Theme::Light => Some(ThemeType::Light),
+                    Theme::Dark => Some(ThemeType::Dark),
+                    Theme::Custom(_) => None,
+                };
                 self.info_message = match self.app_flags.settings.save() {
                     Ok(s) => Some(format!("Saved settings to {:?}", s)),
                     Err(e) => {
-                        self.error_message = Some(format!("Error saving settings: {}", e)); 
+                        self.error_message = Some(format!("Error saving settings: {}", e));
                         None
-                    },
+                    }
                 };
+            }
+            Message::NameChanged(name) => {
+                self.app_flags.settings.name = match name.as_str() {
+                    "" => None,
+                    _ => Some(name),
+                }
             }
         };
         Command::none()
@@ -144,6 +161,22 @@ impl Application for App {
             },
         );
 
+        let name_row = Row::<Message, Renderer>::new()
+            .spacing(20)
+            .push(Text::new("Your name:"))
+            .push(
+                TextInput::new(
+                    "Your display name",
+                    match &self.app_flags.settings.name {
+                        None => "",
+                        Some(s) => s.as_str(),
+                    },
+                )
+                .on_input(|s| Message::NameChanged(s))
+                .padding(15)
+                .size(20),
+            );
+
         let addresses = TextInput::new(
             "Comma Separated list of ip addresses",
             self.addresses.as_str(),
@@ -162,14 +195,16 @@ impl Application for App {
             ))
             .push(Button::<Message, Renderer>::new("Reload").on_press(Message::ReloadMidiDevices));
 
-        let bottom_row = Row::new().spacing(20)
+        let bottom_row = Row::new()
+            .spacing(20)
             .push(Button::new("Connect").on_press(Message::Connect))
             .push(Space::with_width(50))
             .push(Button::new("Save Settings").on_press(Message::SaveSettings));
 
         let col = Column::new()
-            .push(choose_theme)
             .spacing(10)
+            .push(choose_theme)
+            .push(name_row)
             .push(addresses)
             .push(devices_row)
             .push(Space::with_height(50))

@@ -1,6 +1,6 @@
+use serde::{Serialize, Deserialize};
 use std::env;
-use serde::Serialize;
-use std::io::{BufWriter, Cursor};
+use std::io::Cursor;
 use std::{fs::File, io::BufReader, path::Path};
 
 use super::midi;
@@ -35,6 +35,13 @@ pub struct Args {
     pub settings: <Settings as ClapSerde>::Opt,
 }
 
+#[derive(clap::ValueEnum, Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+pub enum ThemeType {
+    Light,
+    Dark,
+}
+
+
 #[derive(ClapSerde, Serialize)]
 pub struct Settings {
     /// Give yourself a name. Defaults to your username.
@@ -60,12 +67,15 @@ pub struct Settings {
     /// Circuit relay port. Use a non default port to connect.
     #[clap(short='P', long="relay_port", default_value = constants::RELAY_PORT)]
     pub relay_port: u16,
+
+    /// GUI theme.
+    #[clap(long="theme", value_enum)]
+    pub theme: Option<ThemeType>,
 }
 
 impl Settings {
     /// Save settings to config file as serde serialized YAML
     pub(crate) fn save(&self) -> Result<String, Box<dyn std::error::Error>> {
-
         let contents = match serde_yaml::to_string(self) {
             Ok(s) => s,
             Err(err) => return Err(err.into()),

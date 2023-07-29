@@ -42,7 +42,7 @@ pub enum ThemeType {
 }
 
 
-#[derive(ClapSerde, Serialize)]
+#[derive(ClapSerde, Serialize, Clone, Debug)]
 pub struct Settings {
     /// Give yourself a name. Defaults to your username.
     #[clap(short = 'n', long = "name")]

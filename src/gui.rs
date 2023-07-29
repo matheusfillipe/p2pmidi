@@ -38,32 +38,35 @@ pub fn run_app(settings: settings::Settings) -> Result<(), iced::Error> {
     })
 }
 
-#[derive(Debug, Clone)]
-enum Message {
-    ThemeChanged(ThemeType),
-    AddressesChanged(String),
-    MidiDeviceChanged(String),
-    Connect,
-    ReloadMidiDevices,
-    SaveSettings,
-    NameChanged(String),
-}
-
-fn theme_type_to_iced_theme(theme: ThemeType) -> Theme {
+fn theme_type_to_iced_theme(theme: Option<ThemeType>) -> Theme {
     match theme {
-        ThemeType::Light => Theme::Light,
-        ThemeType::Dark => Theme::Dark,
+        Some(ThemeType::Light) => Theme::Light,
+        Some(ThemeType::Dark) => Theme::Dark,
+        _ => Theme::Light,
     }
 }
 
+fn iced_theme_to_theme_type(theme: &Theme) -> Option<ThemeType> {
+    match theme {
+        Theme::Light => Some(ThemeType::Light),
+        Theme::Dark => Some(ThemeType::Dark),
+        Theme::Custom(_) => None,
+    }
+}
+
+#[derive(Debug, Clone)]
+enum Message {
+    SettingsChanged(settings::Settings),
+    Connect,
+    ReloadMidiDevices,
+    SaveSettings,
+}
+
 struct App {
-    theme: Theme,
     app_flags: AppFlags,
-    addresses: String,
-    midi_devices: Vec<String>,
-    selected_midi_device: Option<String>,
     error_message: Option<String>,
     info_message: Option<String>,
+    midi_devices: Vec<String>,
 }
 
 impl Application for App {
@@ -80,14 +83,7 @@ impl Application for App {
         );
         (
             App {
-                addresses: _flags.settings.ip_addresses.join(", "),
-                theme: theme_type_to_iced_theme(_flags.settings.theme.unwrap_or(ThemeType::Light)),
                 app_flags: _flags,
-                selected_midi_device: if midi_devices.is_empty() {
-                    None
-                } else {
-                    Some(midi_devices[0].clone())
-                },
                 midi_devices,
                 error_message: None,
                 info_message: None,
@@ -103,29 +99,13 @@ impl Application for App {
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
             Message::Connect => (),
-            Message::ThemeChanged(theme) => {
-                self.theme = match theme {
-                    ThemeType::Light => Theme::Light,
-                    ThemeType::Dark => Theme::Dark,
-                }
-            }
-            Message::AddressesChanged(s) => self.addresses = s,
-            Message::MidiDeviceChanged(s) => self.selected_midi_device = Some(s),
             Message::ReloadMidiDevices => {
                 self.midi_devices = get_midi_list(&self.app_flags.midi_output);
             }
+            Message::SettingsChanged(settings) => {
+                self.app_flags.settings = settings;
+            }
             Message::SaveSettings => {
-                self.app_flags.settings.ip_addresses = self
-                    .addresses
-                    .split(",")
-                    .map(|s| s.trim().to_string())
-                    .collect();
-                self.app_flags.settings.midi_device = self.selected_midi_device.to_owned();
-                self.app_flags.settings.theme = match self.theme {
-                    Theme::Light => Some(ThemeType::Light),
-                    Theme::Dark => Some(ThemeType::Dark),
-                    Theme::Custom(_) => None,
-                };
                 self.info_message = match self.app_flags.settings.save() {
                     Ok(s) => Some(format!("Saved settings to {:?}", s)),
                     Err(e) => {
@@ -133,12 +113,6 @@ impl Application for App {
                         None
                     }
                 };
-            }
-            Message::NameChanged(name) => {
-                self.app_flags.settings.name = match name.as_str() {
-                    "" => None,
-                    _ => Some(name),
-                }
             }
         };
         Command::none()
@@ -151,12 +125,18 @@ impl Application for App {
                 col.push(radio(
                     format!("{theme:?}"),
                     *theme,
-                    Some(match self.theme {
-                        Theme::Light => ThemeType::Light,
-                        Theme::Dark => ThemeType::Dark,
-                        Theme::Custom(_) => todo!(),
-                    }),
-                    Message::ThemeChanged,
+                    Some(
+                        match theme_type_to_iced_theme(self.app_flags.settings.theme) {
+                            Theme::Light => ThemeType::Light,
+                            Theme::Dark => ThemeType::Dark,
+                            Theme::Custom(_) => todo!(),
+                        },
+                    ),
+                    |theme| {
+                        let mut settings = self.app_flags.settings.clone();
+                        settings.theme = Some(theme);
+                        Message::SettingsChanged(settings)
+                    },
                 ))
             },
         );
@@ -172,26 +152,48 @@ impl Application for App {
                         Some(s) => s.as_str(),
                     },
                 )
-                .on_input(|s| Message::NameChanged(s))
+                .on_input(|s| {
+                    let mut settings = self.app_flags.settings.clone();
+                    settings.name = Some(s);
+                    Message::SettingsChanged(settings)
+                })
                 .padding(15)
                 .size(20),
             );
 
         let addresses = TextInput::new(
             "Comma Separated list of ip addresses",
-            self.addresses.as_str(),
+            self.app_flags.settings.ip_addresses.join(", ").as_str(),
         )
-        .on_input(|s| Message::AddressesChanged(s))
+        .on_input(|s| {
+            let mut settings = self.app_flags.settings.clone();
+            let ip_addresses: Vec<String> = s.split(",").map(|s| s.trim().to_string()).collect();
+            settings.ip_addresses = if ip_addresses.len() > 0 {
+                ip_addresses
+            } else {
+                Vec::<String>::new()
+            };
+            Message::SettingsChanged(settings)
+        })
         .padding(15)
         .size(20);
 
+        let selected_midi_device = if self.midi_devices.is_empty() {
+            None
+        } else {
+            Some(self.midi_devices[0].clone())
+        };
         let devices_row = Row::new()
             .spacing(20)
             .push(Text::new("Input Midi Device:"))
             .push(PickList::<String, Message, Renderer>::new(
                 self.midi_devices.clone(),
-                self.selected_midi_device.to_owned(),
-                |s| Message::MidiDeviceChanged(s),
+                selected_midi_device,
+                |s| {
+                    let mut settings = self.app_flags.settings.clone();
+                    settings.midi_device = Some(s);
+                    Message::SettingsChanged(settings)
+                },
             ))
             .push(Button::<Message, Renderer>::new("Reload").on_press(Message::ReloadMidiDevices));
 
@@ -233,7 +235,7 @@ impl Application for App {
     }
 
     fn theme(&self) -> Self::Theme {
-        self.theme.to_owned()
+        theme_type_to_iced_theme(self.app_flags.settings.theme)
     }
 
     fn style(&self) -> <Self::Theme as iced::application::StyleSheet>::Style {

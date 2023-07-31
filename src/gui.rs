@@ -5,10 +5,10 @@ use std;
 
 use super::settings;
 use iced::widget::{
-    column, radio, Button, Column, Container, PickList, Row, Rule, Scrollable, Space, Text,
-    TextInput,
+    column, radio, Button, Column, PickList, Row, Rule, Scrollable, Space, Text,
+    TextInput, Container,
 };
-use iced::{executor, Application, Color, Command, Length, Renderer};
+use iced::{executor, Application, Command, Length, Renderer, Color};
 use iced::{Settings, Theme};
 use iced_aw::NumberInput;
 use midir::MidiOutput;
@@ -60,9 +60,11 @@ enum Message {
     AddAddress,
     AddressInputChanged(String),
     AppPortChanged(u16),
+    ResetSettings,
 }
 
 struct App {
+    initial_settings: settings::Settings,
     app_flags: AppFlags,
     error_message: Option<String>,
     info_message: Option<String>,
@@ -80,6 +82,7 @@ impl Application for App {
         let midi_devices = get_midi_list(&_flags.midi_output);
         (
             App {
+                initial_settings: _flags.settings.clone(),
                 app_flags: _flags,
                 midi_devices,
                 error_message: None,
@@ -138,6 +141,9 @@ impl Application for App {
                         None
                     }
                 };
+            }
+            Message::ResetSettings => {
+                self.app_flags.settings = self.initial_settings.clone();
             }
         };
         Command::none()
@@ -307,6 +313,7 @@ impl Application for App {
             .spacing(20)
             .push(Space::with_width(Length::Fill))
             .push(Button::new("Connect").on_press(Message::Connect))
+            .push(Button::new("Reset Settings").on_press(Message::ResetSettings))
             .push(Button::new("Save Settings").on_press(Message::SaveSettings));
 
         let col = Column::new()

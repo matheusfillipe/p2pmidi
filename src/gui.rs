@@ -1,13 +1,16 @@
+use crate::constants;
 use crate::midi::get_midi_list;
 use crate::settings::ThemeType;
 use std;
 
 use super::settings;
 use iced::widget::{
-    column, radio, Button, Column, Container, PickList, Row, Space, Text, TextInput,
+    column, radio, Button, Column, Container, PickList, Row, Rule, Scrollable, Space, Text,
+    TextInput,
 };
-use iced::{executor, Application, Color, Command, Renderer};
+use iced::{executor, Application, Color, Command, Length, Renderer};
 use iced::{Settings, Theme};
+use iced_aw::NumberInput;
 use midir::MidiOutput;
 
 struct AppFlags {
@@ -32,7 +35,7 @@ pub fn run_app(settings: settings::Settings) -> Result<(), iced::Error> {
     App::run(Settings {
         flags: AppFlags {
             settings,
-            ..Default::default()
+            ..AppFlags::default()
         },
         ..Default::default()
     })
@@ -46,20 +49,17 @@ fn theme_type_to_iced_theme(theme: Option<ThemeType>) -> Theme {
     }
 }
 
-fn iced_theme_to_theme_type(theme: &Theme) -> Option<ThemeType> {
-    match theme {
-        Theme::Light => Some(ThemeType::Light),
-        Theme::Dark => Some(ThemeType::Dark),
-        Theme::Custom(_) => None,
-    }
-}
-
 #[derive(Debug, Clone)]
 enum Message {
     SettingsChanged(settings::Settings),
+    RelayPortChanged(u16),
     Connect,
     ReloadMidiDevices,
     SaveSettings,
+    RemoveAddress(String),
+    AddAddress,
+    AddressInputChanged(String),
+    AppPortChanged(u16),
 }
 
 struct App {
@@ -67,6 +67,7 @@ struct App {
     error_message: Option<String>,
     info_message: Option<String>,
     midi_devices: Vec<String>,
+    address_input: String,
 }
 
 impl Application for App {
@@ -77,16 +78,13 @@ impl Application for App {
 
     fn new(_flags: Self::Flags) -> (Self, Command<Message>) {
         let midi_devices = get_midi_list(&_flags.midi_output);
-        print!(
-            "ip addresses in gui: {}",
-            _flags.settings.ip_addresses.join(", ")
-        );
         (
             App {
                 app_flags: _flags,
                 midi_devices,
                 error_message: None,
                 info_message: None,
+                address_input: String::new(),
             },
             Command::none(),
         )
@@ -105,6 +103,33 @@ impl Application for App {
             Message::SettingsChanged(settings) => {
                 self.app_flags.settings = settings;
             }
+            Message::RelayPortChanged(i) => {
+                self.app_flags.settings.relay_port = Some(i);
+            }
+            Message::RemoveAddress(ip) => {
+                let idx = self
+                    .app_flags
+                    .settings
+                    .ip_addresses
+                    .iter()
+                    .position(|s| s == &ip);
+                if let Some(idx) = idx {
+                    self.app_flags.settings.ip_addresses.remove(idx);
+                }
+            }
+            Message::AddAddress => {
+                self.address_input = String::new();
+                self.app_flags
+                    .settings
+                    .ip_addresses
+                    .push(self.address_input.clone());
+            }
+            Message::AddressInputChanged(s) => {
+                self.address_input = s;
+            }
+            Message::AppPortChanged(p) => {
+                self.app_flags.settings.port = Some(p);
+            }
             Message::SaveSettings => {
                 self.info_message = match self.app_flags.settings.save() {
                     Ok(s) => Some(format!("Saved settings to {:?}", s)),
@@ -119,99 +144,173 @@ impl Application for App {
     }
 
     fn view(&self) -> iced::Element<Self::Message> {
-        let choose_theme = [ThemeType::Light, ThemeType::Dark].iter().fold(
-            column![Text::new("Choose a theme:")].spacing(10),
-            |col: Column<Message>, theme| {
-                col.push(radio(
-                    format!("{theme:?}"),
-                    *theme,
-                    Some(
-                        match theme_type_to_iced_theme(self.app_flags.settings.theme) {
-                            Theme::Light => ThemeType::Light,
-                            Theme::Dark => ThemeType::Dark,
-                            Theme::Custom(_) => todo!(),
+        let choose_theme = Row::new()
+            .push([ThemeType::Light, ThemeType::Dark].iter().fold(
+                column![Text::new("App theme:")].spacing(10),
+                |col: Column<Message>, theme| {
+                    col.push(radio(
+                        format!("{theme:?}"),
+                        *theme,
+                        Some(
+                            match theme_type_to_iced_theme(self.app_flags.settings.theme) {
+                                Theme::Light => ThemeType::Light,
+                                Theme::Dark => ThemeType::Dark,
+                                Theme::Custom(_) => todo!(),
+                            },
+                        ),
+                        |theme| {
+                            Message::SettingsChanged(settings::Settings {
+                                theme: Some(theme),
+                                ..self.app_flags.settings.clone()
+                            })
                         },
-                    ),
-                    |theme| {
-                        let mut settings = self.app_flags.settings.clone();
-                        settings.theme = Some(theme);
-                        Message::SettingsChanged(settings)
-                    },
-                ))
-            },
-        );
+                    ))
+                },
+            ))
+            .push(Space::with_width(Length::Fill));
 
-        let name_row = Row::<Message, Renderer>::new()
-            .spacing(20)
-            .push(Text::new("Your name:"))
+        let name_col = Column::<Message, Renderer>::new()
+            .push(Text::new("Your display name:"))
             .push(
                 TextInput::new(
-                    "Your display name",
+                    "Your display name among the nodes",
                     match &self.app_flags.settings.name {
                         None => "",
                         Some(s) => s.as_str(),
                     },
                 )
                 .on_input(|s| {
-                    let mut settings = self.app_flags.settings.clone();
-                    settings.name = Some(s);
-                    Message::SettingsChanged(settings)
+                    Message::SettingsChanged(settings::Settings {
+                        name: Some(s),
+                        ..self.app_flags.settings.clone()
+                    })
                 })
                 .padding(15)
                 .size(20),
             );
 
-        let addresses = TextInput::new(
-            "Comma Separated list of ip addresses",
-            self.app_flags.settings.ip_addresses.join(", ").as_str(),
-        )
-        .on_input(|s| {
-            let mut settings = self.app_flags.settings.clone();
-            let ip_addresses: Vec<String> = s.split(",").map(|s| s.trim().to_string()).collect();
-            settings.ip_addresses = if ip_addresses.len() > 0 {
-                ip_addresses
-            } else {
-                Vec::<String>::new()
-            };
-            Message::SettingsChanged(settings)
-        })
-        .padding(15)
-        .size(20);
+        let port_col = Column::<Message, Renderer>::new()
+            .push(Text::new("Port:"))
+            .push(
+                NumberInput::new(
+                    self.app_flags.settings.port.unwrap_or(0),
+                    constants::MAX_PORT_NUMBER,
+                    |i| Message::AppPortChanged(i),
+                )
+                .size(20.0),
+            );
+
+        let addresses_col = Column::new().push(Text::new("Device addresses:")).push(
+            Row::new()
+                .spacing(20)
+                .align_items(iced::Alignment::End)
+                .push(
+                    TextInput::new("Device address", self.address_input.as_str())
+                        .on_input(|s| Message::AddressInputChanged(s))
+                        .on_submit(Message::AddAddress)
+                        .padding(15)
+                        .size(20),
+                )
+                .push(
+                    Button::new(Text::new("Add"))
+                        .on_press(Message::AddAddress)
+                        .padding(15),
+                ),
+        );
+
+        let nodes_list = Column::new()
+            .push(Rule::horizontal(10))
+            .push(
+                Scrollable::new(self.app_flags.settings.ip_addresses.iter().fold(
+                    Column::new().spacing(10),
+                    |col: Column<Message>, ip| {
+                        col.push(
+                            Row::new()
+                                .spacing(20)
+                                .align_items(iced::Alignment::End)
+                                .push(Text::new(ip))
+                                .push(Space::with_width(Length::Fill))
+                                .push(
+                                    Button::new(Text::new("Remove"))
+                                        .on_press(Message::RemoveAddress(ip.clone())),
+                                )
+                                .push(Space::with_width(20)),
+                        )
+                    },
+                ))
+                .height(150)
+                .width(Length::Fill),
+            )
+            .push(Rule::horizontal(10));
 
         let selected_midi_device = if self.midi_devices.is_empty() {
             None
         } else {
             Some(self.midi_devices[0].clone())
         };
-        let devices_row = Row::new()
-            .spacing(20)
-            .push(Text::new("Input Midi Device:"))
-            .push(PickList::<String, Message, Renderer>::new(
-                self.midi_devices.clone(),
-                selected_midi_device,
-                |s| {
-                    let mut settings = self.app_flags.settings.clone();
-                    settings.midi_device = Some(s);
-                    Message::SettingsChanged(settings)
-                },
-            ))
-            .push(Button::<Message, Renderer>::new("Reload").on_press(Message::ReloadMidiDevices));
+        let devices_col = Row::new()
+            .push(
+                Column::new().push(Text::new("Input Midi Device:")).push(
+                    Row::new()
+                        .spacing(20)
+                        .push(PickList::<String, Message, Renderer>::new(
+                            self.midi_devices.clone(),
+                            selected_midi_device,
+                            |s| {
+                                Message::SettingsChanged(settings::Settings {
+                                    midi_device: Some(s),
+                                    ..self.app_flags.settings.clone()
+                                })
+                            },
+                        ))
+                        .push(
+                            Button::<Message, Renderer>::new("Reload")
+                                .on_press(Message::ReloadMidiDevices),
+                        ),
+                ),
+            )
+            .push(Space::with_width(Length::Fill));
+
+        let relay_row = Column::<Message, Renderer>::new()
+            .spacing(5)
+            .push(Text::new("Custom Relay:"))
+            .push(
+                TextInput::new(
+                    "Custom Relay address",
+                    self.app_flags
+                        .settings
+                        .relay_address
+                        .clone()
+                        .unwrap()
+                        .as_str(),
+                )
+                .on_input(|s| {
+                    Message::SettingsChanged(settings::Settings {
+                        relay_address: Some(s),
+                        ..self.app_flags.settings.clone()
+                    })
+                })
+                .padding(15)
+                .size(20),
+            )
+            .push(
+                NumberInput::new(
+                    self.app_flags.settings.relay_port.unwrap(),
+                    constants::MAX_PORT_NUMBER,
+                    |i| Message::RelayPortChanged(i),
+                )
+                .size(20.0)
+                .step(1),
+            );
 
         let bottom_row = Row::new()
             .spacing(20)
+            .push(Space::with_width(Length::Fill))
             .push(Button::new("Connect").on_press(Message::Connect))
-            .push(Space::with_width(50))
             .push(Button::new("Save Settings").on_press(Message::SaveSettings));
 
         let col = Column::new()
-            .spacing(10)
-            .push(choose_theme)
-            .push(name_row)
-            .push(addresses)
-            .push(devices_row)
-            .push(Space::with_height(50))
-            .push(bottom_row)
-            .push(Space::with_height(100))
+            .spacing(20)
             .push(match self.error_message {
                 Some(ref s) => Text::new(s).style(Color::from([1.0, 0.0, 0.0])),
                 None => Text::new(""),
@@ -223,6 +322,15 @@ impl Application for App {
                 }
                 .horizontal_alignment(iced::alignment::Horizontal::Left),
             )
+            .push(Space::with_height(20))
+            .push(choose_theme)
+            .push(name_col)
+            .push(addresses_col)
+            .push(nodes_list)
+            .push(port_col)
+            .push(devices_col)
+            .push(relay_row)
+            .push(bottom_row)
             .align_items(iced::Alignment::Center);
 
         Container::new(col)
@@ -230,7 +338,7 @@ impl Application for App {
             .center_y()
             .width(iced::Length::Fill)
             .height(iced::Length::Fill)
-            .padding(50)
+            .padding(25)
             .into()
     }
 

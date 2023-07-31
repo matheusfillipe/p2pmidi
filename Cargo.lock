@@ -2101,6 +2101,7 @@ dependencies = [
  "iced",
  "iced_aw",
  "midir",
+ "rand",
  "serde",
  "serde_yaml",
  "shellexpand",

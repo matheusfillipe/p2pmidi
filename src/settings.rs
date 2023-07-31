@@ -1,4 +1,6 @@
-use serde::{Serialize, Deserialize};
+use rand::Rng;
+
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::io::Cursor;
 use std::{fs::File, io::BufReader, path::Path};
@@ -41,7 +43,6 @@ pub enum ThemeType {
     Dark,
 }
 
-
 #[derive(ClapSerde, Serialize, Clone, Debug)]
 pub struct Settings {
     /// Give yourself a name. Defaults to your username.
@@ -53,23 +54,23 @@ pub struct Settings {
     pub ip_addresses: Vec<String>,
 
     /// Port to connect to. All nodes must use the same port.
-    #[clap(short='p', long="port", default_value = constants::DEFAULT_PORT)]
-    pub port: u16,
+    #[clap(short = 'p', long = "port")]
+    pub port: Option<u16>,
 
     /// MIDI input device to use.
     #[clap(short = 'd', long = "device")]
     pub midi_device: Option<String>,
 
     /// Circuit relay address. Use a non default address to connect.
-    #[clap(short='r', long="relay", default_value = constants::RELAY_ADDRESS)]
-    pub relay_address: String,
+    #[clap(short = 'r', long = "relay")]
+    pub relay_address: Option<String>,
 
     /// Circuit relay port. Use a non default port to connect.
-    #[clap(short='P', long="relay_port", default_value = constants::RELAY_PORT)]
-    pub relay_port: u16,
+    #[clap(short = 'P', long = "relay_port")]
+    pub relay_port: Option<u16>,
 
     /// GUI theme.
-    #[clap(long="theme", value_enum)]
+    #[clap(long = "theme", value_enum)]
     pub theme: Option<ThemeType>,
 }
 
@@ -93,6 +94,29 @@ impl Settings {
             std::fs::write(config_path.to_path_buf(), contents)?;
         }
         Ok(config_path.display().to_string())
+    }
+    pub fn apply_default_values(&mut self) {
+        // Use env username if name is not set
+        if self.name.is_none() {
+            let mut name =
+                env::var("USER").unwrap_or(env::var("USERNAME").unwrap_or("".to_string()));
+            if name.is_empty() {
+                let mut rng = rand::thread_rng();
+                let n = rng.gen_range(0..1000);
+                name = format!("user {}", n);
+            }
+            self.name = Some(name);
+        }
+
+        if self.relay_address.is_none() {
+            self.relay_address = Some(constants::RELAY_ADDRESS.to_string());
+        }
+        if self.relay_port.is_none() {
+            self.relay_port = Some(constants::RELAY_PORT);
+        }
+        if self.port.is_none() {
+            self.port = Some(constants::DEFAULT_PORT);
+        }
     }
 }
 
@@ -151,11 +175,6 @@ pub fn get_program_config() -> (Args, Settings) {
             println!("Selected item: {}", item.output());
             settings.midi_device = Some(item.output().to_string());
         }
-    }
-
-    println!("Listening on {}", settings.port);
-    for ip in &settings.ip_addresses {
-        println!("Connecting to {}", ip);
     }
 
     let arglen = env::args().collect::<Vec<String>>().len();

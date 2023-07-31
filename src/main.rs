@@ -3,9 +3,9 @@ pub mod gui;
 pub mod midi;
 pub mod settings;
 
-
 fn main() {
-    let (args, settings) = settings::get_program_config();
+    let (args, mut settings) = settings::get_program_config();
+    settings.apply_default_values();
 
     if args.gui {
         println!("Running GUI");

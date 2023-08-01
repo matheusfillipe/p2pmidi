@@ -5,10 +5,10 @@ use std;
 
 use super::settings;
 use iced::widget::{
-    column, radio, Button, Column, PickList, Row, Rule, Scrollable, Space, Text,
-    TextInput, Container,
+    column, radio, Button, Column, Container, PickList, Row, Rule, Scrollable, Space, Text,
+    TextInput,
 };
-use iced::{executor, Application, Command, Length, Renderer, Color};
+use iced::{executor, Application, Color, Command, Length, Renderer};
 use iced::{Settings, Theme};
 use iced_aw::NumberInput;
 use midir::MidiOutput;

@@ -20,6 +20,10 @@ use skim::Skim;
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
 pub struct Args {
+    /// Act as a relay listening on all devices and ignores all other arguments except relay_port.
+    #[clap(short, long = "as_relay", default_value = constants::DEFAULT_CONFIG_PATH)]
+    pub as_relay: bool,
+
     /// Config file
     #[clap(short, long = "config", default_value = constants::DEFAULT_CONFIG_PATH)]
     pub config_path: std::path::PathBuf,
@@ -65,7 +69,8 @@ pub struct Settings {
     #[clap(short = 'r', long = "relay")]
     pub relay_address: Option<String>,
 
-    /// Circuit relay port. Use a non default port to connect.
+    /// Circuit relay port. Use a non default port to connect. Listen on this port if this is
+    /// a relay
     #[clap(short = 'P', long = "relay_port")]
     pub relay_port: Option<u16>,
 

@@ -21,8 +21,7 @@ pub fn display_devices() -> Result<(), Box<dyn Error>> {
 }
 
 pub fn get_midi_list<T: midir::MidiIO>(midi: &T) -> Vec<String> {
-    midi
-        .ports()
+    midi.ports()
         .iter()
         .map(|p| midi.port_name(p).unwrap_or("Unknown".to_string()))
         .into_iter()

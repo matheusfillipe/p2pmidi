@@ -201,7 +201,7 @@ impl Application for App {
                 NumberInput::new(
                     self.app_flags.settings.port.unwrap_or(0),
                     constants::MAX_PORT_NUMBER,
-                    |i| Message::AppPortChanged(i),
+                    Message::AppPortChanged,
                 )
                 .size(20.0),
             );
@@ -212,7 +212,7 @@ impl Application for App {
                 .align_items(iced::Alignment::End)
                 .push(
                     TextInput::new("Device address", self.address_input.as_str())
-                        .on_input(|s| Message::AddressInputChanged(s))
+                        .on_input(Message::AddressInputChanged)
                         .on_submit(Message::AddAddress)
                         .padding(15)
                         .size(20),
@@ -303,7 +303,7 @@ impl Application for App {
                 NumberInput::new(
                     self.app_flags.settings.relay_port.unwrap(),
                     constants::MAX_PORT_NUMBER,
-                    |i| Message::RelayPortChanged(i),
+                    Message::RelayPortChanged,
                 )
                 .size(20.0)
                 .step(1),

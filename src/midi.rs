@@ -24,7 +24,6 @@ pub fn get_midi_list<T: midir::MidiIO>(midi: &T) -> Vec<String> {
     midi.ports()
         .iter()
         .map(|p| midi.port_name(p).unwrap_or("Unknown".to_string()))
-        .into_iter()
         .collect::<Vec<String>>()
 }
 
@@ -33,7 +32,7 @@ pub fn get_midi_list_from_result<T: midir::MidiIO>(
 ) -> Result<Vec<String>, String> {
     match midi {
         Ok(m) => Ok(get_midi_list(&m)),
-        Err(e) => return Err(format!("Error creating midi input: {}", e)),
+        Err(e) => Err(format!("Error creating midi input: {}", e)),
     }
 }
 

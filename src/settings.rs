@@ -90,13 +90,13 @@ impl Settings {
         // Get config file
         let path = shellexpand::tilde(constants::DEFAULT_CONFIG_PATH).into_owned();
         let config_path = Path::new(&path);
-        if let Ok(_) = File::open(config_path.to_path_buf()) {
-            std::fs::write(config_path.to_path_buf(), contents)?;
+        if File::open(config_path).is_ok() {
+            std::fs::write(config_path, contents)?;
         } else {
             // Create directory and empty config file
             let parent = config_path.parent().unwrap();
             std::fs::create_dir_all(parent)?;
-            std::fs::write(config_path.to_path_buf(), contents)?;
+            std::fs::write(config_path, contents)?;
         }
         Ok(config_path.display().to_string())
     }
@@ -174,7 +174,7 @@ pub fn get_program_config() -> (Args, Settings) {
         let items = item_reader.of_bufread(Cursor::new(items));
         let selected_items = Skim::run_with(&options, Some(items))
             .map(|out| out.selected_items)
-            .unwrap_or_else(|| Vec::new());
+            .unwrap_or_else(Vec::new);
 
         for item in selected_items {
             println!("Selected item: {}", item.output());
@@ -186,5 +186,5 @@ pub fn get_program_config() -> (Args, Settings) {
     if !atty::is(atty::Stream::Stdin) || arglen == 1 {
         args.gui = true;
     }
-    return (args, settings);
+    (args, settings)
 }

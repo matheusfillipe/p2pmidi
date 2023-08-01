@@ -17,6 +17,10 @@ fn main() {
         return;
     }
 
+    if args.cli && args.gui {
+        panic!("Cannot use both --gui and --cli");
+    }
+
     if args.gui {
         println!("Running GUI");
         match gui::run_app(settings) {
@@ -25,6 +29,13 @@ fn main() {
         }
     } else {
         println!("Running CLI");
-        let _ = p2p::client::start_client(42, settings.relay_port.unwrap(), constants::USE_IPV6);
+        let _ = p2p::client::start_client(
+            p2p::client::Mode::Dial,
+            44,
+            settings.relay_address.unwrap().as_str(),
+            settings.relay_port.unwrap(),
+            42,
+            constants::USE_IPV6,
+        );
     }
 }

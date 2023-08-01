@@ -10,6 +10,7 @@ atty = "0.2.14"
 clap = {version = "4.3.19", features = ["derive"]}
 clap-serde-derive = "0.2.0"
 futures = "0.3.28"
+futures-timer = "3.0.2"
 iced = "0.10.0"
 iced_aw = { version = "0.6.0", default-features = false, features = ["number_input"] }
 libp2p = { version = "0.52.1", features = ["async-std", "noise", "macros", "ping", "tcp", "identify", "yamux", "relay", "dcutr", "dns", "rendezvous", "tokio"] }

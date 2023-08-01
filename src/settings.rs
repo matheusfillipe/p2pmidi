@@ -21,7 +21,7 @@ use skim::Skim;
 #[clap(author, version, about, long_about = None)]
 pub struct Args {
     /// Act as a relay listening on all devices and ignores all other arguments except relay_port.
-    #[clap(short, long = "as_relay", default_value = constants::DEFAULT_CONFIG_PATH)]
+    #[clap(short, long = "as-relay", default_value = "false")]
     pub as_relay: bool,
 
     /// Config file
@@ -31,6 +31,10 @@ pub struct Args {
     /// Open in GUI mode.
     #[clap(short = 'g', long = "gui")]
     pub gui: bool,
+
+    /// Open in CLI mode.
+    #[clap(long = "cli")]
+    pub cli: bool,
 
     /// Prompt for midi input device interactively.
     #[clap(short = 'D', long = "prompt")]
@@ -66,12 +70,12 @@ pub struct Settings {
     pub midi_device: Option<String>,
 
     /// Circuit relay address. Use a non default address to connect.
-    #[clap(short = 'r', long = "relay")]
+    #[clap(short = 'r', long = "relay-address")]
     pub relay_address: Option<String>,
 
     /// Circuit relay port. Use a non default port to connect. Listen on this port if this is
     /// a relay
-    #[clap(short = 'P', long = "relay_port")]
+    #[clap(short = 'P', long = "relay-port")]
     pub relay_port: Option<u16>,
 
     /// GUI theme.

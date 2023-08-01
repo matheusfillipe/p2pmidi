@@ -3536,6 +3536,7 @@ dependencies = [
  "clap-serde-derive",
  "clippy",
  "futures",
+ "futures-timer",
  "iced",
  "iced_aw",
  "libp2p",
